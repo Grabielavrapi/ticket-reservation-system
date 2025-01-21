@@ -1,1 +1,12 @@
-ECHO is on.
+body {
+    font-family: Arial, sans-serif;
+}
+h2 {
+    color: #343a40;
+}
+.card-header {
+    font-size: 1.25rem;
+}
+.list-group-item {
+    font-size: 1.1rem;
+}
