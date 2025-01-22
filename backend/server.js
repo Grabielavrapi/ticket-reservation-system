@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const mysql = require('mysql2/promise'); // Use mysql2 for async queries
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
 // MySQL Database Configuration
 const dbConfig = {

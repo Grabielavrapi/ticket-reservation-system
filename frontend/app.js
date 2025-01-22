@@ -18,7 +18,9 @@ document.getElementById('reservation-form').addEventListener('submit', function 
         return;
     }
 
-    const reservation = { name, email, event: eventSelected, date: new Date().toISOString() };
+    const reservation = { perdorues: name, email, eventi: eventSelected };
+
+
 
     fetch('/api/reservations', {
         method: 'POST',
@@ -71,5 +73,12 @@ function fetchReservations() {
             console.error('Gabim gjatë marrjes së rezervimeve:', error);
         });
 }
+function showReservationDetails(name, email, event) {
+    document.getElementById('modalName').innerText = name;
+    document.getElementById('modalEmail').innerText = email;
+    document.getElementById('modalEvent').innerText = event;
+    new bootstrap.Modal(document.getElementById('reservationModal')).show();
+}
+
 
 window.onload = fetchReservations;
