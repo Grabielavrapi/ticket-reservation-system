@@ -1,59 +1,91 @@
 const express = require('express');
-const fs = require('fs');
 const path = require('path');
+const mysql = require('mysql2/promise'); // Use mysql2 for async queries
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
-// Vendosja e bazës së të dhënave dhe rezervës
-const MAIN_DB = './backend/db.json';
-const BACKUP_DB = './backend/backup.json';
+// MySQL Database Configuration
+const dbConfig = {
+    host: 'localhost', // MySQL server address
+    user: 'root',      // MySQL user
+    password: 'root',  // MySQL password
+    database: 'mydb',  // MySQL database name
+};
+app.locals.dbConfig = dbConfig;
+// Chaos Monkey middleware
+const enableChaosMonkey = process.env.CHAOS_MONKEY === 'true'; // Aktivizo Chaos Monkey nga environment
+app.use((req, res, next) => {
+    if (enableChaosMonkey && Math.random() < 0.3) { // 30% mundësi për të simuluar gabim
+        console.error('Chaos Monkey activated: Simulating a server error.');
+        return res.status(500).json({ message: 'Simulated server error by Chaos Monkey.' });
+    }
+    next();
+});
 
-// Middleware për trajtimin e JSON-it
+// Middleware for parsing JSON
 app.use(express.json());
 
-// Shërbimi i skedarëve të front-end-it
+// Serve frontend static files
 app.use(express.static(path.join(__dirname, '../frontend')));
 
-// Endpoint për marrjen e rezervimeve
-app.get('/api/reservations', (req, res) => {
-    fs.readFile(MAIN_DB, (err, data) => {
-        if (err) return res.status(500).send('Gabim në server.');
-        res.status(200).send(JSON.parse(data));
-    });
+// Endpoint for fetching reservations
+app.get('/api/reservations', async (req, res) => {
+    let connection;
+    try {
+        connection = await mysql.createConnection(app.locals.dbConfig);
+        const [rows] = await connection.execute('SELECT * FROM rezervime');
+        res.status(200).json(rows);
+    } catch (err) {
+        console.error('Error while fetching reservations:', err);
+        res.status(500).json({ message: 'Gabim në server.' });
+    } finally {
+        if (connection) {
+            await connection.end(); // Ensure the connection is closed
+        }
+    }
 });
 
-// Endpoint për shtimin e rezervimeve
-app.post('/api/reservations', (req, res) => {
-    const reservation = req.body;
+// Endpoint for creating reservations
+app.post('/api/reservations', async (req, res) => {
+    const { perdorues, email, eventi } = req.body;
 
-    fs.readFile(MAIN_DB, (err, data) => {
-        if (err) return res.status(500).send('Gabim në server.');
+    // Input validation
+    if (!perdorues || !email || !eventi || !email.includes('@')) {
+        return res.status(400).json({ message: 'Të dhëna të pavlefshme!' });
+    }
 
-        const reservations = JSON.parse(data);
-        reservations.push(reservation);
+    const queryMain = `INSERT INTO rezervime (perdorues, email, eventi) VALUES (?, ?, ?)`;
+    const queryBackup = `INSERT INTO rezervime_rezerve (perdorues, email, eventi) VALUES (?, ?, ?)`;
 
-        // Ruajtja në bazën kryesore
-        fs.writeFile(MAIN_DB, JSON.stringify(reservations, null, 2), (err) => {
-            if (err) {
-                console.error('Gabim gjatë ruajtjes në db.json:', err);
-                return res.status(500).send('Gabim gjatë ruajtjes.');
-            }
-        
-            console.log('Rezervimi u ruajt me sukses:', reservation);
-            res.status(201).json({ message: 'Rezervimi u ruajt me sukses!' });
-        });
-        
-    });
+    let connection;
+    try {
+        connection = await mysql.createConnection(app.locals.dbConfig);
+        await connection.execute(queryMain, [perdorues, email, eventi]);
+        res.status(201).json({ message: 'Rezervimi u ruajt në tabelën kryesore!' });
+    } catch (error) {
+        console.warn('Error in the main table, switching to the backup table:', error);
+
+        try {
+            connection = await mysql.createConnection(app.locals.dbConfig);
+            await connection.execute(queryBackup, [perdorues, email, eventi]);
+            res.status(201).json({ message: 'Rezervimi u ruajt në tabelën rezervë!' });
+        } catch (backupError) {
+            console.error('Error in the backup table:', backupError);
+            res.status(500).json({ message: 'Error while saving the reservation in both tables.' });
+        }
+    } finally {
+        if (connection) {
+            await connection.end(); // Ensure the connection is closed
+        }
+    }
 });
 
-// Funksion për ruajtjen në rezervë
-function saveToBackup(reservations) {
-    fs.writeFile(BACKUP_DB, JSON.stringify(reservations, null, 2), (err) => {
-        if (err) console.error('Gabim gjatë ruajtjes në rezervë:', err);
+// Start the server only when it's the main module
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`Server is running on http://localhost:${PORT}`);
     });
 }
 
-// Startimi i serverit
-app.listen(PORT, () => {
-    console.log(`Serveri po funksionon në http://localhost:${PORT}`);
-});
+// Export the app for testing purposes
+module.exports = app;
