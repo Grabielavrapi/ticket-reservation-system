@@ -65,7 +65,8 @@ function fetchReservations() {
             data.forEach(reservation => {
                 const listItem = document.createElement('li');
                 listItem.className = 'list-group-item';
-                listItem.textContent = `${reservation.name} rezervoi për ${reservation.event} më ${new Date(reservation.date).toLocaleString()}`;
+                listItem.textContent = `${reservation.perdorues} rezervoi për ${reservation.eventi}`;
+
                 reservationsList.appendChild(listItem);
             });
         })
