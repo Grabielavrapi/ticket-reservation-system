@@ -204,6 +204,17 @@ label {
         
     }
 }
+.modal-content {
+    max-width: 600px;
+    margin: auto;
+}
+
+.scrollable-list {
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 10px;
+    background-color: #f9f9f9;
+}
 
 /* 
 .gradient-bg-anim {
